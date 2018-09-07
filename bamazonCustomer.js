@@ -10,14 +10,16 @@ var connection = mysql.createConnection({
 });
 
 connection.connect();
+start();
 
-connection.query('SELECT * FROM products', function (error, results, fields) {
-    if (error) throw error;
-    var data = [];
-    displayItems(results, fields);
-    executeUserChoice(results);
-
-});
+function start() {
+    connection.query('SELECT * FROM products', function (error, results, fields) {
+        if (error) throw error;
+        var data = [];
+        displayItems(results, fields);
+        executeUserChoice(results);
+    });
+}
 
 
 function displayItems(results, fields) {
@@ -36,7 +38,7 @@ function displayItems(results, fields) {
     for (var row of results) {
         var dataRow = [];
         for (var i = 0; i < header.length; i++) {
-            if (header[i] == 'price') {
+            if (header[i] == 'price') {//add the '$' before the price
                 dataRow.push('$' + row[header[i]]);
             } else {
                 dataRow.push(row[header[i]]);
@@ -65,7 +67,7 @@ function executeUserChoice(results) {
         .prompt([{
             type: 'list',
             name: 'item',
-            message: 'What  product you would like to buy? ',
+            message: 'Please Choose the product you would like to buy? ',
             choices: choices
         },
         { type: 'input', name: 'quantity', message: 'how many units would you like to buy: ' }
@@ -79,23 +81,43 @@ function executeUserChoice(results) {
                 purchaseItem(item, quantity);
             } else {
                 console.log("Sorry!! We don't have enough stock to fulfill your order!!");
+                //ask the user if they want to make another purchase
+                askUserWhetherToRestart();
             }
-            //whether the order executed or not, close the connection to exit the program gracefully!!
-            connection.end();
+
         });
 }
 
+function askUserWhetherToRestart() {
+    var choices = [
+        { name: 'YES', value: true },
+        { name: 'NO', value: false }
+    ];
+
+    inquirer
+        .prompt([{
+            type: 'list',
+            name: 'repeat',
+            message: '\nWould You Like to do another Purchase?',
+            choices: choices
+        }
+        ]).then(function (answer) {
+            if (answer.repeat) {
+                start();//restart the program
+            } else {
+                console.log('Goodbye!!');
+                connection.end();//close the connection to exit the program gracefully!!
+            }
+        });
+
+}
 function purchaseItem(item, quantity) {
 
     var query = connection.query(
         "UPDATE products SET ? WHERE ?",
         [
-            {
-                stock_quantity: item['stock_quantity'] - quantity
-            },
-            {
-                item_id: item['item_id']
-            }
+            { stock_quantity: item['stock_quantity'] - quantity },
+            { item_id: item['item_id'] }
         ],
         function (err, res) {
             if (err) {
@@ -103,7 +125,7 @@ function purchaseItem(item, quantity) {
             } else {
                 //if the update is successful, congratulate the userand show them the total cost
                 console.log(`Congratulations!! Your Order went through. Your Total cost is $${quantity * item['price']}`);
+                askUserWhetherToRestart();
             }
-        }
-    );
+        });
 }
